@@ -4,9 +4,7 @@ import { transformDiscountRequest } from '@/lib/transformers';
 
 export const discountService = {
     async getMyDiscounts(): Promise<DiscountRequest[]> {
-        console.log('GET /discounts/my');
         const response = await api.get<any>('/discounts/my');
-        console.log('RAW Response (Discounts):', response.data);
         const data = response.data.data || [];
         return data.map(transformDiscountRequest);
     },
@@ -16,9 +14,7 @@ export const discountService = {
             discount_percentage: payload.discountPercentage,
             reason: payload.reason,
         };
-        console.log('POST /discounts/request:', apiPayload);
         const response = await api.post<any>('/discounts/request', apiPayload);
-        console.log('RAW Response (Create Discount):', response.data);
         return transformDiscountRequest(response.data.data || response.data);
     },
 
@@ -32,11 +28,11 @@ export const discountService = {
         return data.map(transformDiscountRequest);
     },
 
-    async approveDiscount(id: number): Promise<void> {
-        await api.post(`/discounts/${id}/approve`);
+    async approveDiscount(id: number, comment?: string): Promise<void> {
+        await api.post(`/discounts/${id}/approve`, { comment });
     },
 
-    async rejectDiscount(id: number): Promise<void> {
-        await api.post(`/discounts/${id}/reject`);
+    async rejectDiscount(id: number, comment?: string): Promise<void> {
+        await api.post(`/discounts/${id}/reject`, { comment });
     }
 };

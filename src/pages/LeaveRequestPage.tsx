@@ -16,6 +16,7 @@ import { CalendarIcon, CalendarDays, Info } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { LeaveType } from '@/types';
+import { leaveRequestSchema } from '@/lib/validations';
 
 export default function LeaveRequestPage() {
   const { user } = useAuth();
@@ -36,30 +37,33 @@ export default function LeaveRequestPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fromDate || !toDate) {
+    const result = leaveRequestSchema.safeParse({
+      fromDate: fromDate ? format(fromDate, 'yyyy-MM-dd') : '',
+      toDate: toDate ? format(toDate, 'yyyy-MM-dd') : '',
+      leaveType,
+      reason,
+    });
+
+    if (!result.success) {
       toast({
-        title: 'Missing dates',
-        description: 'Please select both start and end dates.',
+        title: 'Validation Error',
+        description: result.error.errors[0].message,
         variant: 'destructive',
       });
       return;
     }
 
-    if (fromDate > toDate) {
-      toast({
-        title: 'Invalid dates',
-        description: 'End date must be after start date.',
-        variant: 'destructive',
-      });
-      return;
-    }
+    const { fromDate: sanitizedFrom, toDate: sanitizedTo, reason: sanitizedReason } = result.data;
 
-    const remainingDays = selectedBalance?.balance ?? 0;
-    if (leaveDays > remainingDays) {
+    const earnBalance = balances.find(b => b.leaveType === 'EARN')?.balance ?? 0;
+    // Allow applying for leave if either the specific type has balance or EARN has balance
+    const effectiveBalance = Math.max(selectedBalance?.balance ?? 0, earnBalance);
+
+    if (leaveDays > effectiveBalance) {
       toast({
         variant: "destructive",
         title: "Insufficient balance",
-        description: `You only have ${remainingDays} days remaining for ${leaveType}.`,
+        description: `You only have ${effectiveBalance} days available (including Earned Leave balance).`,
       });
       return;
     }
@@ -68,14 +72,11 @@ export default function LeaveRequestPage() {
 
     try {
       await requestLeave({
-        fromDate: format(fromDate, 'yyyy-MM-dd'),
-        toDate: format(toDate, 'yyyy-MM-dd'),
+        fromDate: sanitizedFrom,
+        toDate: sanitizedTo,
         leaveType,
-        reason,
+        reason: sanitizedReason,
       });
-
-      // Toast success is handled by hook usually, but we can add UI reset feedback
-      // Hook calls toast.success.
 
       // Reset form
       setFromDate(undefined);

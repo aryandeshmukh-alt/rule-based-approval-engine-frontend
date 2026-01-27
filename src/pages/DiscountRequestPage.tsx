@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { Percent, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { discountRequestSchema } from '@/lib/validations';
 
 export default function DiscountRequestPage() {
   const { user } = useAuth();
@@ -36,6 +37,22 @@ export default function DiscountRequestPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const result = discountRequestSchema.safeParse({
+      discountPercentage: percentage[0],
+      reason,
+    });
+
+    if (!result.success) {
+      toast({
+        title: 'Validation Error',
+        description: result.error.errors[0].message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { reason: sanitizedReason } = result.data;
+
     if (percentage[0] > remainingDiscount) {
       toast({
         variant: "destructive",
@@ -50,7 +67,7 @@ export default function DiscountRequestPage() {
     try {
       await requestDiscount({
         discountPercentage: percentage[0],
-        reason,
+        reason: sanitizedReason,
       });
 
       toast({

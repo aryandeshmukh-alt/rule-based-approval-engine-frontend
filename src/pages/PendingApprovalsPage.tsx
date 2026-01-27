@@ -77,14 +77,14 @@ export default function PendingApprovalsPage() {
 
     try {
       if (selectedRequest.type === 'leave') {
-        if (actionType === 'approve') await approveLeave(selectedRequest.id);
-        else await rejectLeave(selectedRequest.id);
+        if (actionType === 'approve') await approveLeave({ id: selectedRequest.id, comment: reason });
+        else await rejectLeave({ id: selectedRequest.id, comment: reason });
       } else if (selectedRequest.type === 'expense') {
-        if (actionType === 'approve') await approveExpense(selectedRequest.id);
-        else await rejectExpense(selectedRequest.id);
+        if (actionType === 'approve') await approveExpense({ id: selectedRequest.id, comment: reason });
+        else await rejectExpense({ id: selectedRequest.id, comment: reason });
       } else if (selectedRequest.type === 'discount') {
-        if (actionType === 'approve') await approveDiscount(selectedRequest.id);
-        else await rejectDiscount(selectedRequest.id);
+        if (actionType === 'approve') await approveDiscount({ id: selectedRequest.id, comment: reason });
+        else await rejectDiscount({ id: selectedRequest.id, comment: reason });
       }
       // Hook handles toast.
       setSelectedRequest(null);

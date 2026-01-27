@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMockData } from '@/hooks/useMockData';
+import { useAdmin } from '@/hooks/useAdmin';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,15 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -33,14 +33,23 @@ import { cn } from '@/lib/utils';
 
 export default function RulesManagementPage() {
   const { user } = useAuth();
-  const { rules, addRule, toggleRule, deleteRule } = useMockData();
+  const {
+    rules,
+    addRule,
+    toggleRule,
+    deleteRule,
+    isLoadingRules,
+    runAutoReject,
+    isRunningAutoReject
+  } = useAdmin();
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newRule, setNewRule] = useState({
     requestType: 'leave' as RequestType,
-    condition: '',
-    action: 'auto_approve' as ApprovalRule['action'],
+    condition: {} as any,
+    action: 'AUTO_APPROVE' as ApprovalRule['action'],
     priority: 1,
+    gradeId: 1,
   });
 
   // Only admins can access
@@ -48,64 +57,71 @@ export default function RulesManagementPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleAddRule = () => {
-    if (!newRule.condition.trim()) {
-      toast({
-        title: 'Invalid rule',
-        description: 'Please enter a condition for the rule.',
-        variant: 'destructive',
+  if (isLoadingRules) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const handleAddRule = async () => {
+    try {
+      await addRule({
+        ...newRule,
+        isActive: true,
       });
-      return;
+
+      setIsAddDialogOpen(false);
+      setNewRule({
+        requestType: 'leave',
+        condition: {},
+        action: 'AUTO_APPROVE',
+        priority: 1,
+        gradeId: 1,
+      });
+    } catch (e) {
+      console.error(e);
     }
-
-    addRule({
-      ...newRule,
-      isActive: true,
-    });
-
-    toast({
-      title: 'Rule created',
-      description: 'The new approval rule has been added successfully.',
-    });
-
-    setIsAddDialogOpen(false);
-    setNewRule({
-      requestType: 'leave',
-      condition: '',
-      action: 'auto_approve',
-      priority: 1,
-    });
   };
 
-  const handleDeleteRule = (id: number) => {
-    deleteRule(id);
-    toast({
-      title: 'Rule deleted',
-      description: 'The rule has been removed.',
-    });
+  const handleDeleteRule = async (id: number) => {
+    try {
+      await deleteRule(id);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const getActionIcon = (action: ApprovalRule['action']) => {
-    switch (action) {
+    const a = action.toLowerCase();
+    switch (a) {
       case 'auto_approve': return <CheckCircle2 className="h-4 w-4 text-status-approved" />;
       case 'auto_reject': return <XCircle className="h-4 w-4 text-status-rejected" />;
       case 'assign_approver': return <Users className="h-4 w-4 text-status-pending" />;
+      default: return null;
     }
   };
 
   const getActionLabel = (action: ApprovalRule['action']) => {
-    switch (action) {
+    const a = action.toLowerCase();
+    switch (a) {
       case 'auto_approve': return 'Auto Approve';
       case 'auto_reject': return 'Auto Reject';
       case 'assign_approver': return 'Assign Approver';
+      default: return action;
     }
   };
 
   const getActionBadgeVariant = (action: ApprovalRule['action']) => {
-    switch (action) {
+    const a = action.toLowerCase();
+    switch (a) {
       case 'auto_approve': return 'bg-status-approved-bg text-status-approved';
       case 'auto_reject': return 'bg-status-rejected-bg text-status-rejected';
       case 'assign_approver': return 'bg-status-pending-bg text-status-pending';
+      default: return 'bg-muted';
     }
   };
 
@@ -123,10 +139,12 @@ export default function RulesManagementPage() {
             <h1 className="text-3xl font-bold tracking-tight">Rules Management</h1>
             <p className="text-muted-foreground mt-1">Configure automatic approval rules</p>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Rule
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Rule
+            </Button>
+          </div>
         </div>
 
         {/* Stats Overview */}
@@ -187,23 +205,29 @@ export default function RulesManagementPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Priority</TableHead>
+                    <TableHead className="w-[80px]">Rank</TableHead>
                     <TableHead>Condition</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Target Grade</TableHead>
+                    <TableHead>System Decision</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="text-right">Manage</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rulesByType[type].sort((a, b) => a.priority - b.priority).map((rule) => (
                     <TableRow key={rule.id}>
                       <TableCell>
-                        <Badge variant="outline">{rule.priority}</Badge>
+                        <span className="text-sm text-muted-foreground font-medium">#{rule.priority}</span>
                       </TableCell>
                       <TableCell>
-                        <code className="text-sm bg-muted px-2 py-1 rounded">
-                          {rule.condition}
+                        <code className="text-[11px] bg-muted px-2 py-1 rounded font-mono">
+                          {typeof rule.condition === 'object' ? JSON.stringify(rule.condition) : rule.condition}
                         </code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="font-normal">
+                          {rule.gradeId === 1 ? 'Employee' : rule.gradeId === 2 ? 'Manager' : rule.gradeId === 3 ? 'Admin' : `Grade ${rule.gradeId}`}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge className={cn('gap-1', getActionBadgeVariant(rule.action))}>
@@ -214,7 +238,7 @@ export default function RulesManagementPage() {
                       <TableCell>
                         <Switch
                           checked={rule.isActive}
-                          onCheckedChange={() => toggleRule(rule.id)}
+                          onCheckedChange={() => toggleRule(rule)}
                         />
                       </TableCell>
                       <TableCell className="text-right">
@@ -250,13 +274,13 @@ export default function RulesManagementPage() {
                 Create a new automatic approval rule
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Request Type</Label>
-                <Select 
-                  value={newRule.requestType} 
-                  onValueChange={(v) => setNewRule({...newRule, requestType: v as RequestType})}
+                <Select
+                  value={newRule.requestType}
+                  onValueChange={(v) => setNewRule({ ...newRule, requestType: v as RequestType })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -272,28 +296,63 @@ export default function RulesManagementPage() {
               <div className="space-y-2">
                 <Label>Condition</Label>
                 <Input
-                  placeholder="e.g., amount < 1000 AND category = 'Travel'"
-                  value={newRule.condition}
-                  onChange={(e) => setNewRule({...newRule, condition: e.target.value})}
+                  placeholder='e.g., {"max_amount": 10000}'
+                  value={
+                    typeof newRule.condition === 'object'
+                      ? JSON.stringify(newRule.condition)
+                      : newRule.condition
+                  }
+                  onChange={(e) => {
+                    try {
+                      const val = JSON.parse(e.target.value);
+                      setNewRule({ ...newRule, condition: val });
+                    } catch {
+                      setNewRule({ ...newRule, condition: e.target.value });
+                    }
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use variables like: amount, leave_days, discount_percentage, category, leave_type
+                  Enter condition as JSON: {"{ \"max_amount\": 5000 }"} or{" "}
+                  {"{ \"max_days\": 3 }"}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label>Action</Label>
-                <Select 
-                  value={newRule.action} 
-                  onValueChange={(v) => setNewRule({...newRule, action: v as ApprovalRule['action']})}
+                <Select
+                  value={newRule.action}
+                  onValueChange={(v) =>
+                    setNewRule({ ...newRule, action: v as ApprovalRule['action'] })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-popover">
-                    <SelectItem value="auto_approve">Auto Approve</SelectItem>
-                    <SelectItem value="auto_reject">Auto Reject</SelectItem>
-                    <SelectItem value="assign_approver">Assign Approver</SelectItem>
+                    <SelectItem value="AUTO_APPROVE">Auto Approve</SelectItem>
+                    <SelectItem value="AUTO_REJECT">Auto Reject</SelectItem>
+                    <SelectItem value="ASSIGN_APPROVER">
+                      Assign Approver
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Employee Grade</Label>
+                <Select
+                  value={String(newRule.gradeId)}
+                  onValueChange={(v) =>
+                    setNewRule({ ...newRule, gradeId: parseInt(v) })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="1">Grade 1 (Employee)</SelectItem>
+                    <SelectItem value="2">Grade 2 (Manager)</SelectItem>
+                    <SelectItem value="3">Grade 3 (Admin)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -304,10 +363,15 @@ export default function RulesManagementPage() {
                   type="number"
                   min={1}
                   value={newRule.priority}
-                  onChange={(e) => setNewRule({...newRule, priority: parseInt(e.target.value) || 1})}
+                  onChange={(e) =>
+                    setNewRule({
+                      ...newRule,
+                      priority: parseInt(e.target.value) || 1,
+                    })
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Lower numbers = higher priority. Rules are evaluated in priority order.
+                  Lower numbers = higher priority.
                 </p>
               </div>
             </div>

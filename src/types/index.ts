@@ -91,11 +91,29 @@ export interface Holiday {
 export interface ApprovalRule {
   id: number;
   requestType: RequestType;
-  condition: string;
-  action: 'auto_approve' | 'auto_reject' | 'assign_approver';
+  condition: any; // Can be object or stringified JSON
+  action: 'auto_approve' | 'auto_reject' | 'assign_approver' | 'AUTO_APPROVE' | 'AUTO_REJECT';
   priority: number;
   isActive: boolean;
-  createdAt: string;
+  gradeId?: number;
+  createdAt?: string;
+}
+
+export interface StatusDistribution {
+  approved: number;
+  auto_rejected: number;
+  cancelled: number;
+  pending: number;
+  rejected: number;
+  auto_approved: number;
+  total_requests: number;
+}
+
+export interface RequestTypeReport {
+  type: string;
+  total_requests: number;
+  auto_approved: number;
+  auto_approved_percentage: number;
 }
 
 export interface DashboardStats {

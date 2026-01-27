@@ -32,7 +32,7 @@ import { Navigate } from 'react-router-dom';
 
 export default function HolidaysPage() {
   const { user } = useAuth();
-  const { holidays, addHoliday, deleteHoliday } = useAdmin();
+  const { holidays, addHoliday, deleteHoliday, isLoadingHolidays } = useAdmin();
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newDate, setNewDate] = useState<Date>();
@@ -41,6 +41,16 @@ export default function HolidaysPage() {
   // Only admins can access
   if (user?.role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (isLoadingHolidays) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </AppLayout>
+    );
   }
 
   const handleAddHoliday = async () => {

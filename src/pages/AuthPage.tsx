@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, ArrowRight, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { loginSchema, registerSchema } from '@/lib/validations';
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -43,19 +44,22 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Validation: Trim inputs
-    const email = loginEmail.trim();
-    const password = loginPassword; // Don't trim password
+    const result = loginSchema.safeParse({
+      email: loginEmail,
+      password: loginPassword,
+    });
 
-    if (!email || !password) {
+    if (!result.success) {
       toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
+        title: 'Validation Error',
+        description: result.error.errors[0].message,
         variant: 'destructive',
       });
       setIsLoading(false);
       return;
     }
+
+    const { email, password } = result.data;
 
     try {
       await login(email, password);
@@ -79,25 +83,29 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const name = registerName.trim();
-    const email = registerEmail.trim();
-    const password = registerPassword;
+    const result = registerSchema.safeParse({
+      name: registerName,
+      email: registerEmail,
+      password: registerPassword,
+    });
 
-    if (!name || !email || !password) {
+    if (!result.success) {
       toast({
-        title: 'Error',
-        description: 'Please fill in all fields',
+        title: 'Validation Error',
+        description: result.error.errors[0].message,
         variant: 'destructive',
       });
       setIsLoading(false);
       return;
     }
 
+    const { name, email, password } = result.data;
+
     try {
       await register(name, email, password);
       toast({
         title: 'Account created!',
-        description: 'Welcome to ApprovalFlow.',
+        description: 'Welcome to ApprovalGenie.',
       });
       navigate('/dashboard');
     } catch (error) {

@@ -13,23 +13,19 @@ interface CreateLeaveRequestPayload {
 
 export const leaveService = {
     async getMyLeaves(): Promise<LeaveRequest[]> {
-        console.log('GET /leaves/my');
         const response = await api.get<any>('/leaves/my');
-        console.log('RAW Response (Leaves):', response.data);
         const data = response.data.data || [];
         return data.map(transformLeaveRequest);
     },
 
     async requestLeave(payload: { fromDate: string; toDate: string; leaveType: string; reason: string }): Promise<LeaveRequest> {
-        const apiPayload: CreateLeaveRequestPayload = {
+        const apiPayload = {
             from_date: payload.fromDate,
             to_date: payload.toDate,
             leave_type: payload.leaveType,
             reason: payload.reason,
         };
-        console.log('POST /leaves/request:', apiPayload);
         const response = await api.post<any>('/leaves/request', apiPayload);
-        console.log('RAW Response (Create Leave):', response.data);
         return transformLeaveRequest(response.data.data || response.data);
     },
 
@@ -45,12 +41,12 @@ export const leaveService = {
         return data.map(transformLeaveRequest);
     },
 
-    async approveLeave(id: number): Promise<void> {
-        await api.post(`/leaves/${id}/approve`);
+    async approveLeave(id: number, comment?: string): Promise<void> {
+        await api.post(`/leaves/${id}/approve`, { comment });
     },
 
-    async rejectLeave(id: number): Promise<void> {
-        await api.post(`/leaves/${id}/reject`);
+    async rejectLeave(id: number, comment?: string): Promise<void> {
+        await api.post(`/leaves/${id}/reject`, { comment });
     },
 
     async getBalances(): Promise<LeaveBalance[]> {

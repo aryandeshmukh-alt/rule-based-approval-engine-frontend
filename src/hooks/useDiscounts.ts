@@ -41,7 +41,7 @@ export function useDiscounts() {
     });
 
     const approveDiscountMutation = useMutation({
-        mutationFn: discountService.approveDiscount,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => discountService.approveDiscount(id, comment),
         onSuccess: () => {
             toast.success('Discount approved');
             queryClient.invalidateQueries({ queryKey: ['discounts', 'pending'] });
@@ -50,7 +50,7 @@ export function useDiscounts() {
     });
 
     const rejectDiscountMutation = useMutation({
-        mutationFn: discountService.rejectDiscount,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => discountService.rejectDiscount(id, comment),
         onSuccess: () => {
             toast.success('Discount rejected');
             queryClient.invalidateQueries({ queryKey: ['discounts', 'pending'] });

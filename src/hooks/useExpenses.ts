@@ -41,7 +41,7 @@ export function useExpenses() {
     });
 
     const approveExpenseMutation = useMutation({
-        mutationFn: expenseService.approveExpense,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => expenseService.approveExpense(id, comment),
         onSuccess: () => {
             toast.success('Expense approved');
             queryClient.invalidateQueries({ queryKey: ['expenses', 'pending'] });
@@ -50,7 +50,7 @@ export function useExpenses() {
     });
 
     const rejectExpenseMutation = useMutation({
-        mutationFn: expenseService.rejectExpense,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => expenseService.rejectExpense(id, comment),
         onSuccess: () => {
             toast.success('Expense rejected');
             queryClient.invalidateQueries({ queryKey: ['expenses', 'pending'] });

@@ -1,15 +1,15 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMockData } from '@/hooks/useMockData';
+import { useAdmin } from '@/hooks/useAdmin';
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -28,40 +28,63 @@ const COLORS = {
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const { stats, leaveRequests, expenseRequests, discountRequests, rules } = useMockData();
+  const {
+    statusDistribution,
+    requestsByType,
+    rules,
+    isLoadingStatusDistribution,
+    isLoadingRequestsByType,
+    isLoadingRules
+  } = useAdmin();
 
   // Only admins can access
   if (user?.role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const allRequests = [
-    ...leaveRequests.map(r => ({ ...r, type: 'leave' })),
-    ...expenseRequests.map(r => ({ ...r, type: 'expense' })),
-    ...discountRequests.map(r => ({ ...r, type: 'discount' })),
-  ];
+  const isLoading = isLoadingStatusDistribution || isLoadingRequestsByType || isLoadingRules;
 
   // Status distribution data
-  const statusData = [
-    { name: 'Approved', value: allRequests.filter(r => r.status === 'approved').length, color: COLORS.approved },
-    { name: 'Rejected', value: allRequests.filter(r => r.status === 'rejected').length, color: COLORS.rejected },
-    { name: 'Pending', value: allRequests.filter(r => r.status === 'pending').length, color: COLORS.pending },
-    { name: 'Cancelled', value: allRequests.filter(r => r.status === 'cancelled').length, color: COLORS.cancelled },
-  ];
+  const statusData = statusDistribution ? [
+    { name: 'Approved', value: statusDistribution.approved, color: COLORS.approved },
+    { name: 'Rejected', value: statusDistribution.rejected, color: COLORS.rejected },
+    { name: 'Pending', value: statusDistribution.pending, color: COLORS.pending },
+    { name: 'Cancelled', value: statusDistribution.cancelled, color: COLORS.cancelled },
+    { name: 'Auto-Rejected', value: statusDistribution.auto_rejected, color: COLORS.rejected },
+  ].filter(s => s.value > 0) : [];
 
   // Request type distribution
-  const typeData = [
-    { name: 'Leave', count: leaveRequests.length, auto: leaveRequests.filter(r => r.statusReason?.includes('Auto')).length },
-    { name: 'Expense', count: expenseRequests.length, auto: expenseRequests.filter(r => r.statusReason?.includes('Auto')).length },
-    { name: 'Discount', count: discountRequests.length, auto: discountRequests.filter(r => r.statusReason?.includes('Auto')).length },
-  ];
+  const typeData = requestsByType.map(item => ({
+    name: item.type.charAt(0).toUpperCase() + item.type.slice(1).toLowerCase(),
+    count: item.total_requests,
+    auto: item.auto_approved
+  }));
 
-  // Rule effectiveness
-  const activeRules = rules.filter(r => r.isActive).length;
-  const totalAutoProcessed = allRequests.filter(r => r.statusReason?.includes('Auto')).length;
-  const autoApprovalRate = allRequests.length > 0 
-    ? Math.round((totalAutoProcessed / allRequests.length) * 100) 
+  // Auto-processing metrics
+  const totalRequests = typeData.reduce((acc, curr) => acc + curr.count, 0);
+  const totalAutoProcessed = typeData.reduce((acc, curr) => acc + curr.auto, 0);
+  const autoApprovalRate = totalRequests > 0
+    ? Math.round((totalAutoProcessed / totalRequests) * 100)
     : 0;
+
+  const stats = {
+    totalRequests,
+    pendingRequests: statusDistribution?.pending || 0,
+    autoApproved: totalAutoProcessed,
+    autoRejected: statusDistribution?.auto_rejected || 0,
+  };
+
+  const activeRules = rules.filter(r => r.isActive).length;
+
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -125,8 +148,8 @@ export default function ReportsPage() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',
@@ -150,17 +173,17 @@ export default function ReportsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={typeData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="name" 
+                    <XAxis
+                      dataKey="name"
                       className="text-muted-foreground"
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                     />
-                    <YAxis 
+                    <YAxis
                       className="text-muted-foreground"
                       tick={{ fill: 'hsl(var(--muted-foreground))' }}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px',

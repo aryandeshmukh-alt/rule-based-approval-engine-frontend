@@ -10,69 +10,113 @@ const normalizeStatus = (status: string | undefined | null): RequestStatus => {
     return 'pending';
 };
 
-const sanitizeDate = (date: string | null | undefined): string | null => {
-    if (!date || date.trim() === '') {
-        return null; // Return null instead of current date to distinguish backend gaps
+const FALLBACK_DATE = '1970-01-01T00:00:00Z';
+
+const safeExtractDate = (data: any, keys: string[]): string | null => {
+    for (const key of keys) {
+        const val = data[key];
+        if (!val) continue;
+        if (typeof val === 'string' && val.trim() !== '') return val;
+        if (typeof val === 'number') return new Date(val).toISOString();
+        if (val instanceof Date) return val.toISOString();
     }
-    return date;
+    return null;
 };
 
-// Update Request interfaces in types for createdAt to be string | null? 
-// No, I'll just check for null in the UI. 
-// Wait, Request interfaces say string. Let's stick to string but use a specific placeholder.
-const FALLBACK_DATE = '1970-01-01T00:00:00Z'; // Used to signal invalid/missing
+const safeExtractString = (data: any, keys: string[]): string | undefined => {
+    for (const key of keys) {
+        const val = data[key];
+        if (val !== undefined && val !== null && String(val).trim() !== '') return String(val);
+    }
+    return undefined;
+};
+
+const REASON_KEYS = ['reason', 'description', 'remark', 'remarks', 'purpose', 'explanation', 'details'];
+const COMMENT_KEYS = ['comment', 'comments', 'approval_comment', 'status_reason', 'manager_remark', 'manager_comment', 'decision_note', 'status_comment', 'feedback'];
+const DATE_KEYS = ['created_at', 'createdAt', 'inserted_at', 'insertedAt', 'creation_date', 'registration_date', 'date', 'timestamp', 'submitted_at'];
+const FROM_DATE_KEYS = ['from_date', 'fromDate', 'start_date', 'startDate'];
+const TO_DATE_KEYS = ['to_date', 'toDate', 'end_date', 'endDate'];
 
 
 export const transformLeaveRequest = (data: any): LeaveRequest => {
-    const created = sanitizeDate(data.created_at);
-    return {
+    console.log('[DEBUG] Raw Leave Request:', data);
+    const created = safeExtractDate(data, DATE_KEYS);
+    const reason = safeExtractString(data, REASON_KEYS);
+    const comment = safeExtractString(data, COMMENT_KEYS);
+
+    const result: LeaveRequest = {
         id: data.id,
         userId: data.user_id,
-        userName: data.user_name,
-        fromDate: sanitizeDate(data.from_date) || FALLBACK_DATE,
-        toDate: sanitizeDate(data.to_date) || FALLBACK_DATE,
-        leaveType: data.leave_type,
-        reason: data.reason || data.description || 'No reason found',
+        userName: data.employee || data.user_name || data.name || data.staff_name,
+        fromDate: safeExtractDate(data, FROM_DATE_KEYS) || FALLBACK_DATE,
+        toDate: safeExtractDate(data, TO_DATE_KEYS) || FALLBACK_DATE,
+        leaveType: data.leave_type || data.leaveType,
+        reason: reason || 'No reason found',
         status: normalizeStatus(data.status),
-        statusReason: data.approval_comment || data.status_reason,
+        statusReason: comment,
         createdAt: created || FALLBACK_DATE,
-        updatedAt: sanitizeDate(data.updated_at) || created || FALLBACK_DATE,
+        updatedAt: safeExtractDate(data, ['updated_at', 'updatedAt']) || created || FALLBACK_DATE,
     };
+    console.log('[DEBUG] Transformed Leave Request:', result);
+    return result;
 };
 
 export const transformExpenseRequest = (data: any): ExpenseRequest => {
-    const created = sanitizeDate(data.created_at);
-    return {
+    console.log('[DEBUG] Raw Expense Request:', data);
+    const created = safeExtractDate(data, DATE_KEYS);
+    const reason = safeExtractString(data, REASON_KEYS);
+    const comment = safeExtractString(data, COMMENT_KEYS);
+
+    const result: ExpenseRequest = {
         id: data.id,
         userId: data.user_id,
-        userName: data.user_name,
+        userName: data.employee || data.user_name || data.name || data.staff_name,
         amount: data.amount,
         category: data.category,
-        reason: data.reason || data.description || 'No reason found',
+        reason: reason || 'No reason found',
         status: normalizeStatus(data.status),
-        statusReason: data.approval_comment || data.status_reason,
+        statusReason: comment,
         createdAt: created || FALLBACK_DATE,
-        updatedAt: sanitizeDate(data.updated_at) || created || FALLBACK_DATE,
+        updatedAt: safeExtractDate(data, ['updated_at', 'updatedAt']) || created || FALLBACK_DATE,
     };
+    console.log('[DEBUG] Transformed Expense Request:', result);
+    return result;
 };
 
 export const transformDiscountRequest = (data: any): DiscountRequest => {
-    const created = sanitizeDate(data.created_at);
-    return {
+    console.log('[DEBUG] Raw Discount Request:', data);
+    const created = safeExtractDate(data, DATE_KEYS);
+    const reason = safeExtractString(data, REASON_KEYS);
+    const comment = safeExtractString(data, COMMENT_KEYS);
+
+    const result: DiscountRequest = {
         id: data.id,
         userId: data.user_id,
-        userName: data.user_name,
-        discountPercentage: data.discount_percentage,
-        reason: data.reason || data.description || 'No reason found',
+        userName: data.employee || data.user_name || data.name || data.staff_name,
+        discountPercentage: data.discount_percentage || data.discountPercentage || data.percentage || data.discount || data.percent || 0,
+        reason: reason || 'No reason found',
         status: normalizeStatus(data.status),
-        statusReason: data.approval_comment || data.status_reason,
+        statusReason: comment,
         createdAt: created || FALLBACK_DATE,
-        updatedAt: sanitizeDate(data.updated_at) || created || FALLBACK_DATE,
+        updatedAt: safeExtractDate(data, ['updated_at', 'updatedAt']) || created || FALLBACK_DATE,
     };
+    console.log('[DEBUG] Transformed Discount Request:', result);
+    return result;
 };
 
 export const transformHoliday = (data: any): Holiday => ({
     id: data.id,
-    date: sanitizeDate(data.date),
+    date: safeExtractDate(data, ['date']) || FALLBACK_DATE,
     description: data.description,
+});
+
+export const transformApprovalRule = (data: any): any => ({
+    id: data.id,
+    requestType: (data.request_type || data.requestType || 'leave').toLowerCase(),
+    condition: data.condition,
+    action: data.action,
+    priority: data.priority || 1,
+    isActive: data.active ?? data.isActive ?? true,
+    gradeId: data.grade_id || data.gradeId,
+    createdAt: data.timestamp || data.createdAt,
 });

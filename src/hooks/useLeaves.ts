@@ -51,17 +51,16 @@ export function useLeaves() {
     });
 
     const approveLeaveMutation = useMutation({
-        mutationFn: leaveService.approveLeave,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => leaveService.approveLeave(id, comment),
         onSuccess: () => {
             toast.success('Leave approved');
             queryClient.invalidateQueries({ queryKey: ['leaves', 'pending'] });
-            // If we differ between all leaves and pending, we might want to invalidate others too.
         },
         onError: () => toast.error('Failed to approve leave')
     });
 
     const rejectLeaveMutation = useMutation({
-        mutationFn: leaveService.rejectLeave,
+        mutationFn: ({ id, comment }: { id: number; comment?: string }) => leaveService.rejectLeave(id, comment),
         onSuccess: () => {
             toast.success('Leave rejected');
             queryClient.invalidateQueries({ queryKey: ['leaves', 'pending'] });

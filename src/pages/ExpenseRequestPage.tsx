@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Receipt, Info, DollarSign } from 'lucide-react';
+import { expenseRequestSchema } from '@/lib/validations';
 
 const expenseCategories = [
   'Travel',
@@ -36,18 +37,25 @@ export default function ExpenseRequestPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const amountValue = parseFloat(amount);
-    if (isNaN(amountValue) || amountValue <= 0) {
+    const result = expenseRequestSchema.safeParse({
+      amount: parseFloat(amount),
+      category,
+      reason,
+    });
+
+    if (!result.success) {
       toast({
-        title: 'Invalid amount',
-        description: 'Please enter a valid expense amount.',
+        title: 'Validation Error',
+        description: result.error.errors[0].message,
         variant: 'destructive',
       });
       return;
     }
 
+    const { amount: sanitizedAmount, reason: sanitizedReason } = result.data;
+
     const remainingExpense = unifiedBalances?.expenses.remaining ?? 0;
-    if (amountValue > remainingExpense) {
+    if (sanitizedAmount > remainingExpense) {
       toast({
         variant: "destructive",
         title: "Insufficient balance",
@@ -60,9 +68,9 @@ export default function ExpenseRequestPage() {
 
     try {
       await requestExpense({
-        amount: amountValue,
+        amount: sanitizedAmount,
         category,
-        reason,
+        reason: sanitizedReason,
       });
 
       // Reset form

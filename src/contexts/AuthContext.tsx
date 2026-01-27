@@ -19,20 +19,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user on mount to persist session visually
-    // Note: The backend handles the actual session via HttpOnly cookies.
-    // We store the user info in localStorage just for UI persistence (e.g. name, role).
-    // A better approach would be a /me endpoint, but for now we trust the localStorage until an API call fails with 401.
-    const storedUser = localStorage.getItem('approval_engine_user');
-    if (storedUser) {
+    const checkAuth = async () => {
       try {
-        setUser(JSON.parse(storedUser));
+        const fullUser = await authService.getUserInfo();
+        setUser(fullUser);
+        localStorage.setItem('approval_engine_user', JSON.stringify(fullUser));
       } catch (e) {
-        console.error('Failed to parse stored user', e);
-        localStorage.removeItem('approval_engine_user');
+        console.warn('Silent auth check failed or no session', e);
+        // Fallback to localStorage if offline or first load, but clear if 401
+        const storedUser = localStorage.getItem('approval_engine_user');
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (parseError) {
+            localStorage.removeItem('approval_engine_user');
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {

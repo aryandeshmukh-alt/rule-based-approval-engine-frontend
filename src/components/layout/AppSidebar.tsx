@@ -32,7 +32,6 @@ const approverNav = [
 
 const adminNav = [
   { title: 'Rules Management', url: '/admin/rules', icon: Shield },
-  { title: 'User Management', url: '/admin/users', icon: Users },
   { title: 'Reports', url: '/admin/reports', icon: BarChart3 },
   { title: 'Holidays', url: '/admin/holidays', icon: CalendarDays },
 ];
@@ -82,25 +81,27 @@ export function AppSidebar() {
           {!collapsed && <span className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider">Main</span>}
         </div>
         <ul className="space-y-1 px-2">
-          {employeeNav.map((item) => (
-            <li key={item.url}>
-              <NavLink
-                to={item.url}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                    isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    collapsed && "justify-center px-2"
-                  )
-                }
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && <span>{item.title}</span>}
-              </NavLink>
-            </li>
-          ))}
+          {employeeNav
+            .filter((item) => !isAdmin || item.title === 'Dashboard')
+            .map((item) => (
+              <li key={item.url}>
+                <NavLink
+                  to={item.url}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                      isActive
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      collapsed && "justify-center px-2"
+                    )
+                  }
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!collapsed && <span>{item.title}</span>}
+                </NavLink>
+              </li>
+            ))}
         </ul>
 
         {(isManager || isAdmin) && (

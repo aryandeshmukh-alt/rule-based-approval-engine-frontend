@@ -24,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Eye, X, Calendar, DollarSign, Percent, Info } from 'lucide-react';
@@ -38,6 +48,12 @@ export default function MyRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'all' | RequestType>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | RequestStatus>('all');
+
+  const [confirmCancel, setConfirmCancel] = useState<{
+    type: RequestType;
+    id: number;
+  } | null>(null);
+
 
   const allRequests = useMemo(() => [
     ...myLeaves.map(r => ({ ...r, type: 'leave' as const })),
@@ -254,7 +270,7 @@ export default function MyRequestsPage() {
                               variant="destructive"
                               size="icon"
                               className="h-8 w-8 rounded-full shadow-sm hover:translate-y-[-1px] transition-all"
-                              onClick={() => handleCancel(request.type, request.id)}
+                              onClick={() => setConfirmCancel({ type: request.type, id: request.id })}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -379,13 +395,15 @@ export default function MyRequestsPage() {
                     </p>
                   </div>
 
-                  {selectedRequest.statusReason && (
+                  {(selectedRequest.status === 'approved' || selectedRequest.status === 'rejected') && (
                     <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10">
                       <div className="flex items-start gap-3">
                         <Info className="h-5 w-5 text-primary mt-0.5" />
                         <div className="space-y-1">
                           <p className="text-xs font-bold text-primary uppercase tracking-tight">Decision Note</p>
-                          <p className="text-sm text-foreground/80 leading-relaxed font-medium">{selectedRequest.statusReason}</p>
+                          <p className="text-sm text-foreground/80 leading-relaxed font-medium">
+                            {selectedRequest.statusReason || 'no comment found'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -408,6 +426,32 @@ export default function MyRequestsPage() {
             )}
           </DialogContent>
         </Dialog>
+        {/* Cancellation Confirmation Dialog */}
+        <AlertDialog open={!!confirmCancel} onOpenChange={() => setConfirmCancel(null)}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-2xl font-bold">Request Deletion</AlertDialogTitle>
+              <AlertDialogDescription className="text-base">
+                Are you sure you want to cancel this {confirmCancel?.type} request?
+                This action cannot be undone and the request will be permanently removed from active processing.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 pt-4">
+              <AlertDialogCancel className="rounded-xl h-11 px-6 font-bold">Nevermind</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl h-11 px-6 font-bold shadow-lg shadow-destructive/20"
+                onClick={() => {
+                  if (confirmCancel) {
+                    handleCancel(confirmCancel.type, confirmCancel.id);
+                    setConfirmCancel(null);
+                  }
+                }}
+              >
+                Yes, Cancel Request
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
