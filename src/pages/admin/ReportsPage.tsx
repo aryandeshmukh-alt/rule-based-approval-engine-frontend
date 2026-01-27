@@ -20,8 +20,10 @@ import { FileText, Clock, CheckCircle2, XCircle, Zap, TrendingUp } from 'lucide-
 import { Navigate } from 'react-router-dom';
 
 const COLORS = {
-  approved: 'hsl(142, 76%, 36%)',
-  rejected: 'hsl(0, 84%, 60%)',
+  approvedManual: 'hsl(142, 76%, 70%)',
+  approvedAuto: 'hsl(142, 76%, 36%)',
+  rejectedManual: 'hsl(0, 84%, 75%)',
+  rejectedAuto: 'hsl(0, 84%, 60%)',
   pending: 'hsl(38, 92%, 50%)',
   cancelled: 'hsl(215, 16%, 47%)',
 };
@@ -44,34 +46,47 @@ export default function ReportsPage() {
 
   const isLoading = isLoadingStatusDistribution || isLoadingRequestsByType || isLoadingRules;
 
-  // Status distribution data
-  const statusData = statusDistribution ? [
-    { name: 'Approved', value: statusDistribution.approved, color: COLORS.approved },
-    { name: 'Rejected', value: statusDistribution.rejected, color: COLORS.rejected },
-    { name: 'Pending', value: statusDistribution.pending, color: COLORS.pending },
-    { name: 'Cancelled', value: statusDistribution.cancelled, color: COLORS.cancelled },
-    { name: 'Auto-Rejected', value: statusDistribution.auto_rejected, color: COLORS.rejected },
-  ].filter(s => s.value > 0) : [];
+  // Derived Stats Logic
+  const autoApprovedTotal = requestsByType.reduce((acc, curr) => acc + (curr.auto_approved || 0), 0);
+  const totalApproved = statusDistribution?.approved || 0;
+  const manualApproved = Math.max(0, totalApproved - autoApprovedTotal);
 
-  // Request type distribution
+  const manualRejected = statusDistribution?.rejected || 0;
+  const autoRejected = statusDistribution?.auto_rejected || 0;
+  const totalRejected = manualRejected + autoRejected;
+
+  // Unified Total calculation (Sum of all statuses in distribution)
+  const processedTotal = totalApproved + totalRejected + (statusDistribution?.cancelled || 0);
+  const pendingRequests = statusDistribution?.pending || 0;
+  const totalRequests = processedTotal + pendingRequests;
+
+  const totalAutoProcessed = autoApprovedTotal + autoRejected;
+  const autoProcessingRate = processedTotal > 0
+    ? Math.round((totalAutoProcessed / processedTotal) * 100)
+    : 0;
+
+  // Status distribution data for Pie Chart
+  const statusData = [
+    { name: 'Approved (Manual)', value: manualApproved, color: COLORS.approvedManual },
+    { name: 'Approved (Auto)', value: autoApprovedTotal, color: COLORS.approvedAuto },
+    { name: 'Rejected (Manual)', value: manualRejected, color: COLORS.rejectedManual },
+    { name: 'Rejected (Auto)', value: autoRejected, color: COLORS.rejectedAuto },
+    { name: 'Pending', value: pendingRequests, color: COLORS.pending },
+    { name: 'Cancelled', value: statusDistribution?.cancelled || 0, color: COLORS.cancelled },
+  ].filter(s => s.value > 0);
+
+  // Request type distribution data for Bar Chart
   const typeData = requestsByType.map(item => ({
     name: item.type.charAt(0).toUpperCase() + item.type.slice(1).toLowerCase(),
     count: item.total_requests,
     auto: item.auto_approved
   }));
 
-  // Auto-processing metrics
-  const totalRequests = typeData.reduce((acc, curr) => acc + curr.count, 0);
-  const totalAutoProcessed = typeData.reduce((acc, curr) => acc + curr.auto, 0);
-  const autoApprovalRate = totalRequests > 0
-    ? Math.round((totalAutoProcessed / totalRequests) * 100)
-    : 0;
-
   const stats = {
     totalRequests,
-    pendingRequests: statusDistribution?.pending || 0,
-    autoApproved: totalAutoProcessed,
-    autoRejected: statusDistribution?.auto_rejected || 0,
+    pendingRequests,
+    autoApproved: autoApprovedTotal,
+    autoRejected
   };
 
   const activeRules = rules.filter(r => r.isActive).length;
@@ -110,7 +125,7 @@ export default function ReportsPage() {
           />
           <StatCard
             title="Auto-Processed"
-            value={`${autoApprovalRate}%`}
+            value={`${autoProcessingRate}%`}
             subtitle={`${totalAutoProcessed} requests`}
             icon={Zap}
             variant="success"

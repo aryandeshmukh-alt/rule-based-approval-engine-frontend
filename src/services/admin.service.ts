@@ -54,41 +54,13 @@ export const adminService = {
     // Reports
     async getStatusDistribution(): Promise<StatusDistribution> {
         const response = await api.get<any>('/admin/reports/request-status-distribution');
-        const data = response.data.data || response.data;
-
-        if (data.total_requests === 0 || !data.total_requests) {
-            return {
-                ...data,
-                approved: 15,
-                rejected: 5,
-                cancelled: 3,
-                pending: 2,
-                auto_approved: 12,
-                auto_rejected: 4,
-                total_requests: 39
-            };
-        }
-
-        return data;
+        return response.data.data || response.data;
     },
 
     async getRequestsByType(): Promise<RequestTypeReport[]> {
         const response = await api.get<any>('/admin/reports/requests-by-type');
         const data = response.data.data || response.data;
-        const result = Array.isArray(data) ? data : [];
-
-        // --- PRO TIP: Uncomment below to see non-zero metrics for demo ---
-        /*
-        if (result.length === 0) {
-          return [
-            { type: 'leave', total_requests: 25, auto_approved: 10, auto_approved_percentage: 40 },
-            { type: 'expense', total_requests: 10, auto_approved: 5, auto_approved_percentage: 50 },
-            { type: 'discount', total_requests: 4, auto_approved: 2, auto_approved_percentage: 50 }
-          ];
-        }
-        */
-
-        return result;
+        return Array.isArray(data) ? data : [];
     },
 
     // System

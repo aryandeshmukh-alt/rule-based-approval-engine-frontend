@@ -39,8 +39,10 @@ import { BalanceUsageDialog } from '@/components/balances/BalanceUsageDialog';
 import { RequestDetailDialog } from '@/components/dashboard/RequestDetailDialog';
 
 const COLORS = {
-  approved: 'hsl(142, 76%, 36%)',
-  rejected: 'hsl(0, 84%, 60%)',
+  approvedManual: 'hsl(142, 70%, 55%)',
+  approvedAuto: 'hsl(142, 76%, 36%)',
+  rejectedManual: 'hsl(0, 70%, 65%)',
+  rejectedAuto: 'hsl(0, 84%, 60%)',
   pending: 'hsl(38, 92%, 50%)',
   cancelled: 'hsl(215, 16%, 47%)',
 };
@@ -76,9 +78,10 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     const pendingCount = pendingLeaves.length + pendingExpenses.length + pendingDiscounts.length;
+    const personalAll = [...myLeaves, ...myExpenses, ...myDiscounts];
 
-    // Approvers (Admin/Manager) prioritize system-wide distribution
-    if (isAdmin || isManager) {
+    // Admin sees system-wide metrics
+    if (isAdmin) {
       if (!statusDistribution) {
         return {
           totalRequests: pendingCount,
@@ -86,32 +89,53 @@ export default function Dashboard() {
           approvedRequests: 0,
           rejectedRequests: 0,
           cancelledRequests: 0,
+          manualApproved: 0,
+          autoApproved: 0,
+          manualRejected: 0,
+          autoRejected: 0,
+          isLoading: true
         };
       }
 
-      const approved = (statusDistribution.approved || 0) + (statusDistribution.auto_approved || 0);
-      const rejected = (statusDistribution.rejected || 0) + (statusDistribution.auto_rejected || 0);
+      const totalApproved = statusDistribution.approved || 0;
+      const autoApproved = requestsByType?.reduce((acc, curr) => acc + (curr.auto_approved || 0), 0) || 0;
+      const manualApproved = Math.max(0, totalApproved - autoApproved);
+
+      const manualRejected = statusDistribution.rejected || 0;
+      const autoRejected = statusDistribution.auto_rejected || 0;
+      const totalRejected = manualRejected + autoRejected;
+
       const cancelled = statusDistribution.cancelled || 0;
+      const processedTotal = totalApproved + totalRejected + cancelled;
 
       return {
-        totalRequests: approved + rejected + cancelled + pendingCount,
+        totalRequests: processedTotal + pendingCount,
         pendingRequests: pendingCount,
-        approvedRequests: approved,
-        rejectedRequests: rejected,
+        approvedRequests: totalApproved,
+        rejectedRequests: totalRejected,
         cancelledRequests: cancelled,
+        manualApproved,
+        autoApproved,
+        manualRejected,
+        autoRejected,
+        isLoading: false
       };
     }
 
-    // Employees see only their own requests
-    const all = [...myLeaves, ...myExpenses, ...myDiscounts];
+    // Managers & Employees see THEIR OWN requests in top cards
     return {
-      totalRequests: all.length,
-      pendingRequests: all.filter(r => r.status === 'pending').length,
-      approvedRequests: all.filter(r => r.status === 'approved').length,
-      rejectedRequests: all.filter(r => r.status === 'rejected').length,
-      cancelledRequests: all.filter(r => r.status === 'cancelled').length,
+      totalRequests: personalAll.length,
+      pendingRequests: personalAll.filter(r => r.status === 'pending').length,
+      approvedRequests: personalAll.filter(r => r.status === 'approved' || r.status === 'auto_approved').length,
+      rejectedRequests: personalAll.filter(r => r.status === 'rejected' || r.status === 'auto_rejected').length,
+      cancelledRequests: personalAll.filter(r => r.status === 'cancelled').length,
+      manualApproved: personalAll.filter(r => r.status === 'approved').length,
+      autoApproved: personalAll.filter(r => r.status === 'auto_approved').length,
+      manualRejected: personalAll.filter(r => r.status === 'rejected').length,
+      autoRejected: personalAll.filter(r => r.status === 'auto_rejected').length,
+      isLoading: false
     };
-  }, [myLeaves, myExpenses, myDiscounts, pendingLeaves, pendingExpenses, pendingDiscounts, isAdmin, isManager, statusDistribution]);
+  }, [myLeaves, myExpenses, myDiscounts, pendingLeaves, pendingExpenses, pendingDiscounts, isAdmin, isManager, statusDistribution, requestsByType]);
 
   const recentRequests = useMemo(() => {
     const list = isApprover
@@ -132,34 +156,33 @@ export default function Dashboard() {
   }, [myLeaves, myExpenses, myDiscounts, pendingLeaves, pendingExpenses, pendingDiscounts, isApprover, isAdmin, statusDistribution]);
 
   const statusData = useMemo(() => {
-    if (isApprover && statusDistribution) {
-      return [
-        { name: 'Approved', value: (statusDistribution.approved || 0) + (statusDistribution.auto_approved || 0), color: COLORS.approved },
-        { name: 'Rejected', value: (statusDistribution.rejected || 0) + (statusDistribution.auto_rejected || 0), color: COLORS.rejected },
-        { name: 'Pending', value: pendingLeaves.length + pendingExpenses.length + pendingDiscounts.length, color: COLORS.pending },
-        { name: 'Cancelled', value: statusDistribution.cancelled || 0, color: COLORS.cancelled },
-      ].filter(item => item.value > 0);
+    // Admin uses System Stats
+    if (isAdmin && statusDistribution) {
+      const data = [];
+      if (stats.manualApproved > 0) data.push({ name: 'Approved (Manual)', value: stats.manualApproved, color: COLORS.approvedManual });
+      if (stats.autoApproved > 0) data.push({ name: 'Approved (Auto)', value: stats.autoApproved, color: COLORS.approvedAuto });
+      if (stats.manualRejected > 0) data.push({ name: 'Rejected (Manual)', value: stats.manualRejected, color: COLORS.rejectedManual });
+      if (stats.autoRejected > 0) data.push({ name: 'Rejected (Auto)', value: stats.autoRejected, color: COLORS.rejectedAuto });
+      if (stats.pendingRequests > 0) data.push({ name: 'Pending', value: stats.pendingRequests, color: COLORS.pending });
+      if (stats.cancelledRequests > 0) data.push({ name: 'Cancelled', value: stats.cancelledRequests, color: COLORS.cancelled });
+      return data;
     }
-    // Fallback for when distribution is loading or not available
-    if (isApprover) {
-      return [
-        { name: 'Leaves (Pending)', value: pendingLeaves.length, color: COLORS.pending },
-        { name: 'Expenses (Pending)', value: pendingExpenses.length, color: COLORS.pending },
-        { name: 'Discounts (Pending)', value: pendingDiscounts.length, color: COLORS.pending },
-      ].filter(item => item.value > 0);
-    }
-    return [
-      { name: 'Approved', value: stats.approvedRequests, color: COLORS.approved },
-      { name: 'Rejected', value: stats.rejectedRequests, color: COLORS.rejected },
-      { name: 'Pending', value: stats.pendingRequests, color: COLORS.pending },
-      { name: 'Cancelled', value: stats.cancelledRequests, color: COLORS.cancelled },
-    ].filter(item => item.value > 0);
-  }, [stats, isApprover, statusDistribution, pendingLeaves, pendingExpenses, pendingDiscounts]);
+
+    // Manager/Employee uses Personal Stats
+    const data = [];
+    if (stats.manualApproved > 0) data.push({ name: 'Approved (Manual)', value: stats.manualApproved, color: COLORS.approvedManual });
+    if (stats.autoApproved > 0) data.push({ name: 'Approved (Auto)', value: stats.autoApproved, color: COLORS.approvedAuto });
+    if (stats.manualRejected > 0) data.push({ name: 'Rejected (Manual)', value: stats.manualRejected, color: COLORS.rejectedManual });
+    if (stats.autoRejected > 0) data.push({ name: 'Rejected (Auto)', value: stats.autoRejected, color: COLORS.rejectedAuto });
+    if (stats.pendingRequests > 0) data.push({ name: 'Pending', value: stats.pendingRequests, color: COLORS.pending });
+    if (stats.cancelledRequests > 0) data.push({ name: 'Cancelled', value: stats.cancelledRequests, color: COLORS.cancelled });
+    return data;
+  }, [isAdmin, stats, statusDistribution]);
 
   const getUsageData = (type: 'leave' | 'expense' | 'discount') => {
     if (type === 'leave') {
       return myLeaves
-        .filter(r => r.status === 'approved')
+        .filter(r => r.status === 'approved' || r.status === 'auto_approved')
         .map(r => ({
           id: r.id,
           date: r.createdAt,
@@ -168,7 +191,7 @@ export default function Dashboard() {
         }));
     } else if (type === 'expense') {
       return myExpenses
-        .filter(r => r.status === 'approved')
+        .filter(r => r.status === 'approved' || r.status === 'auto_approved')
         .map(r => ({
           id: r.id,
           date: r.createdAt,
@@ -177,7 +200,7 @@ export default function Dashboard() {
         }));
     } else {
       return myDiscounts
-        .filter(r => r.status === 'approved')
+        .filter(r => r.status === 'approved' || r.status === 'auto_approved')
         .map(r => ({
           id: r.id,
           date: r.createdAt,
@@ -331,13 +354,13 @@ export default function Dashboard() {
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-muted-foreground">Auto-Processing Efficiency</span>
                         <span className="font-bold text-green-600">
-                          {stats.totalRequests > 0 ? Math.round(((statusDistribution?.auto_approved || 0) + (statusDistribution?.auto_rejected || 0)) / stats.totalRequests * 100) : 0}%
+                          {stats.totalRequests > 0 ? Math.round((stats.autoApproved + stats.autoRejected) / (stats.totalRequests - stats.pendingRequests) * 100) : 0}%
                         </span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
                         <div
                           className="bg-green-500 h-2 rounded-full transition-all duration-1000"
-                          style={{ width: `${stats.totalRequests > 0 ? ((statusDistribution?.auto_approved || 0) + (statusDistribution?.auto_rejected || 0)) / stats.totalRequests * 100 : 0}%` }}
+                          style={{ width: `${stats.totalRequests > 0 ? ((stats.autoApproved + stats.autoRejected) / (stats.totalRequests - stats.pendingRequests)) * 100 : 0}%` }}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground italic">Percentage of requests handled automatically</p>
@@ -351,48 +374,61 @@ export default function Dashboard() {
               <div className="space-y-6">
                 <Card className="rounded-3xl border-primary/10 bg-gradient-to-br from-primary/5 to-transparent shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg font-bold">Team Performance</CardTitle>
-                    <CardDescription>Decision history summary</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg font-bold">Approvals Queue</CardTitle>
+                        <CardDescription>Items waiting for your review</CardDescription>
+                      </div>
+                      <div className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                        Operational
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-2xl bg-card border border-border/50">
-                        <p className="text-xs text-muted-foreground font-bold uppercase mb-1">Approved</p>
-                        <p className="text-2xl font-black text-green-600">{statusDistribution?.approved || 0}</p>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 rounded-2xl bg-card border border-border/50 text-center">
+                        <CalendarDays className="h-5 w-5 mx-auto mb-2 text-primary/60" />
+                        <p className="text-2xl font-black">{pendingLeaves.length}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Leaves</p>
                       </div>
-                      <div className="p-4 rounded-2xl bg-card border border-border/50">
-                        <p className="text-xs text-muted-foreground font-bold uppercase mb-1">Rejected</p>
-                        <p className="text-2xl font-black text-red-600">{statusDistribution?.rejected || 0}</p>
+                      <div className="p-4 rounded-2xl bg-card border border-border/50 text-center">
+                        <Receipt className="h-5 w-5 mx-auto mb-2 text-primary/60" />
+                        <p className="text-2xl font-black">{pendingExpenses.length}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Expenses</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-card border border-border/50 text-center">
+                        <Percent className="h-5 w-5 mx-auto mb-2 text-primary/60" />
+                        <p className="text-2xl font-black">{pendingDiscounts.length}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold">Discounts</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-3xl border-border/40 shadow-sm overflow-hidden text-black">
+                <Card className="rounded-3xl border-border/40 shadow-sm overflow-hidden">
                   <CardHeader className="pb-3 px-6 pt-6">
-                    <CardTitle className="text-lg font-bold text-primary">Request Summary</CardTitle>
-                    <CardDescription>Historical team activity breakdown</CardDescription>
+                    <CardTitle className="text-lg font-bold">Your Request Status</CardTitle>
+                    <CardDescription>Track your personal requests</CardDescription>
                   </CardHeader>
-                  <CardContent className="px-6 pb-6 space-y-4">
-                    {['leave', 'expense', 'discount'].map(type => {
-                      const data = requestsByType?.find(r => r.type.toLowerCase() === type);
-                      const icon = type === 'leave' ? <CalendarDays className="h-4 w-4" /> :
-                        type === 'expense' ? <Receipt className="h-4 w-4" /> : <Percent className="h-4 w-4" />;
-                      const colorClass = type === 'leave' ? 'bg-leave-bg text-leave' :
-                        type === 'expense' ? 'bg-expense-bg text-expense' : 'bg-discount-bg text-discount';
-
-                      return (
-                        <div key={type} className="flex items-center justify-between p-3 rounded-2xl bg-muted/20 border border-border/40">
-                          <div className="flex items-center gap-3">
-                            <div className={cn("p-2 rounded-lg", colorClass)}>{icon}</div>
-                            <span className="text-sm font-bold capitalize">{type}s</span>
-                          </div>
-                          <span className="text-sm font-black text-muted-foreground">
-                            {data?.total_requests || 0} Total
-                          </span>
-                        </div>
-                      );
-                    })}
+                  <CardContent className="px-6 pb-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-center">
+                        <p className="text-sm text-blue-600 font-semibold mb-1">Manual Approved</p>
+                        <p className="text-2xl font-black text-blue-900">{stats.manualApproved}</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
+                        <p className="text-sm text-emerald-600 font-semibold mb-1">Auto Approved</p>
+                        <p className="text-2xl font-black text-emerald-900">{stats.autoApproved}</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-center">
+                        <p className="text-sm text-red-600 font-semibold mb-1">Manual Rejected</p>
+                        <p className="text-2xl font-black text-red-900">{stats.manualRejected}</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200 text-center">
+                        <p className="text-sm text-orange-600 font-semibold mb-1">Auto Rejected</p>
+                        <p className="text-2xl font-black text-orange-900">{stats.autoRejected}</p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -403,13 +439,22 @@ export default function Dashboard() {
           <div className="lg:col-span-4 space-y-6">
             <Card className="rounded-3xl border-border/40 overflow-hidden shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-bold">Insights</CardTitle>
-                <CardDescription>
-                  {isApprover ? (statusDistribution ? 'System-wide activity distribution' : 'Pending team requests') : 'Request Distribution'}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-bold">Insights</CardTitle>
+                    <CardDescription>
+                      {isApprover ? (statusDistribution ? 'System-wide activity distribution' : 'Pending team requests') : 'Request Distribution'}
+                    </CardDescription>
+                  </div>
+                  {statusDistribution && (
+                    <div className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                      Live
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="h-[280px] -mt-2">
+                <div className="h-[320px] -mt-2">
                   {stats.totalRequests > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -417,27 +462,49 @@ export default function Dashboard() {
                           data={statusData}
                           cx="50%"
                           cy="45%"
-                          innerRadius={70}
-                          outerRadius={100}
-                          paddingAngle={12}
+                          innerRadius={65}
+                          outerRadius={90}
+                          paddingAngle={8}
                           dataKey="value"
                           stroke="none"
-                          cornerRadius={8}
+                          cornerRadius={6}
                         >
                           {statusData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
                         <Tooltip
-                          contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', fontWeight: 'bold' }}
-                          cursor={{ fill: 'transparent' }}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              const percentage = Math.round((data.value / stats.totalRequests) * 100);
+                              return (
+                                <div className="bg-background/95 backdrop-blur-sm border border-border px-3 py-2 rounded-xl shadow-xl">
+                                  <p className="text-xs font-bold text-foreground mb-1">{data.name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: data.color }} />
+                                    <p className="text-sm font-black">{data.value} <span className="text-[10px] text-muted-foreground font-medium">({percentage}%)</span></p>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
                         />
                         <Legend
                           verticalAlign="bottom"
-                          align="center"
-                          iconType="circle"
-                          wrapperStyle={{ paddingTop: '20px' }}
-                          formatter={(value) => <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground ml-1.5">{value}</span>}
+                          height={80}
+                          content={({ payload }) => (
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
+                              {payload?.map((entry: any, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }} />
+                                  <span className="text-[11px] font-medium text-muted-foreground truncate">{entry.value}</span>
+                                  <span className="text-[11px] font-bold ml-auto">{statusData[index]?.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         />
                       </PieChart>
                     </ResponsiveContainer>

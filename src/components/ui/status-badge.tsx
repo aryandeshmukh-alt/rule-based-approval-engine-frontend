@@ -10,14 +10,18 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   const statusStyles = {
     pending: 'bg-status-pending-bg text-status-pending',
     approved: 'bg-status-approved-bg text-status-approved',
+    auto_approved: 'bg-green-100 text-green-800 border border-green-300',
     rejected: 'bg-status-rejected-bg text-status-rejected',
+    auto_rejected: 'bg-red-100 text-red-800 border border-red-300',
     cancelled: 'bg-status-cancelled-bg text-status-cancelled',
   };
 
   const statusLabels = {
     pending: 'Pending',
     approved: 'Approved',
+    auto_approved: 'Auto Approved',
     rejected: 'Rejected',
+    auto_rejected: 'Auto Rejected',
     cancelled: 'Cancelled',
   };
 

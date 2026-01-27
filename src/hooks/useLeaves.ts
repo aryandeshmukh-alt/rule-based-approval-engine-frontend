@@ -34,7 +34,15 @@ export function useLeaves() {
             queryClient.invalidateQueries({ queryKey: ['balances'] });
         },
         onError: (error: any) => {
-            toast.error(error.response?.data?.error || 'Failed to request leave');
+            const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to request leave';
+            // Check for overlapping request error
+            if (errorMessage.toLowerCase().includes('overlap') || errorMessage.toLowerCase().includes('conflict')) {
+                toast.error('Overlapping Leave Request', {
+                    description: errorMessage,
+                });
+            } else {
+                toast.error(errorMessage);
+            }
         },
     });
 

@@ -1,6 +1,6 @@
 export type UserRole = 'employee' | 'manager' | 'admin';
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'auto_approved' | 'auto_rejected';
 
 export type RequestType = 'leave' | 'expense' | 'discount';
 

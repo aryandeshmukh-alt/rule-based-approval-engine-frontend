@@ -3,8 +3,9 @@ import { LeaveRequest, ExpenseRequest, DiscountRequest, Holiday, RequestStatus }
 const normalizeStatus = (status: string | undefined | null): RequestStatus => {
     if (!status) return 'pending'; // Default if missing
     const s = status.toUpperCase();
-    if (s === 'AUTO_APPROVED') return 'approved';
+    if (s === 'AUTO_APPROVED') return 'auto_approved';
     if (s === 'APPROVED') return 'approved';
+    if (s === 'AUTO_REJECTED') return 'auto_rejected';
     if (s === 'REJECTED') return 'rejected';
     if (s === 'CANCELLED') return 'cancelled';
     return 'pending';
